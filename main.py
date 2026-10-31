@@ -50,7 +50,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.2"
+PLUGIN_VERSION = "0.2.3"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -303,6 +303,8 @@ class DshPetBridge(Star):
                 "[petlink] 客户端身份覆盖已关闭（默认 false）；旧版依赖它的请显式开启 allow_client_identity=true"
             )
         self._limiter = RateLimiter(self._int("rate_per_min", 30), self._int("rate_burst", 5, 1))
+        # /balance 单独一个桶：刷余额不挤占 /chat 的额度。
+        self._balance_limiter = RateLimiter(self._int("rate_per_min", 30), self._int("rate_burst", 5, 1))
         self._sem = asyncio.Semaphore(self._int("max_concurrent", 4, 1))
 
         try:
@@ -633,7 +635,7 @@ class DshPetBridge(Star):
         否则超长 id 会把 ``pet:`` 自己截掉。
         """
         prefix = self._str("session_prefix", "pet:")
-        limit = 200
+        limit = self._int("session_max_chars", 200, 16)
         cleaned = "".join(ch if (ch.isalnum() or ch in "_:.-") else "-" for ch in session_id)
         body = cleaned[len(prefix):] if prefix and cleaned.startswith(prefix) else cleaned
         # 纯符号/emoji 清理后只剩连字符：不要造出所有会话共用一个 pet:--- 桶。
@@ -646,18 +648,20 @@ class DshPetBridge(Star):
     async def _handle_balance(self, request: web.Request) -> web.StreamResponse:
         """代查余额：客户端拿不到上游 Key，只拿到归一化后的钱包列表。"""
         cors = self._cors_headers(request)
-        if self._disabled_reason or self._session is None or self._sem is None or self._limiter is None:
+        if self._disabled_reason or self._session is None or self._sem is None or self._balance_limiter is None:
             return self._json({"error": "bridge_not_ready"}, 503, cors)
         if not self._tokens:
             return self._json({"error": "tokens_not_configured"}, 503, cors)
         token = self._extract_token(request)
         if self._match_token(token) is None:
             return self._json({"error": "unauthorized"}, 401, cors)
-        if not self._limiter.allow(token):
+        if not self._balance_limiter.allow(token):
+            rate = self._int("rate_per_min", 30, 1)
+            retry_after = str(max(1, (60 + rate - 1) // rate))
             return self._json(
                 {"error": "rate_limited"},
                 429,
-                {**cors, "Retry-After": "5"},
+                {**cors, "Retry-After": retry_after},
             )
         url = str(self._raw("balance_url", "") or "").strip()
         key = str(self._raw("balance_key", "") or "").strip()
@@ -720,10 +724,12 @@ class DshPetBridge(Star):
 
         if not self._limiter.allow(token):
             self._counters["rejected"] += 1
+            rate = self._int("rate_per_min", 30, 1)
+            retry_after = str(max(1, (60 + rate - 1) // rate))
             return self._json(
                 {"error": "rate_limited"},
                 429,
-                {**cors, "Retry-After": "5"},
+                {**cors, "Retry-After": retry_after},
             )
 
         try:

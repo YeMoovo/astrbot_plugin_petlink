@@ -128,18 +128,24 @@
     "description": "会话前缀",
     "hint": "默认 pet:，避免与 WebChat 会话撞车；留空则不加。"
   },
+  "session_max_chars": {
+    "type": "int",
+    "default": 200,
+    "description": "会话 ID 最大长度",
+    "hint": "加前缀后的最大字符数，默认 200，最小 16。"
+  },
   "tokens": {
     "type": "text",
     "default": "",
     "description": "设备令牌（旧版多行，可留空）",
-    "hint": "新版客户端请用下面的「单个设备令牌」，这里留空即可；它只为旧配置兼容：一行一个 token=username。"
+    "hint": "一行一个 token=username；填写下面的「单个设备令牌」后，这里会被完全覆盖。"
   },
   "device_token": {
     "type": "string",
     "default": "",
     "obscured": true,
-    "description": "单个设备令牌",
-    "hint": "把客户端「连接设置」里生成并复制的令牌粘贴到这里，一个就够；填了它就不用管上面的多行。"
+    "description": "单个设备令牌（填了会覆盖多行 tokens）",
+    "hint": "只支持单设备：填了这里会完全覆盖上面的 tokens 多行，多设备请留空并只使用 tokens。"
   },
   "device_username": {
     "type": "string",

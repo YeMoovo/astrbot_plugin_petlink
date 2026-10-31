@@ -1,7 +1,7 @@
 name: astrbot_plugin_petlink
 display_name: PetLink 桥接（AstrBot）
 desc: 为 PetLink 桌宠客户端提供远程对话接口：把桌宠的文本请求转发到 AstrBot OpenAPI，并把 SSE 原样回传。桌宠只持有可吊销的设备令牌，拿不到上游 API Key。
-version: 0.2.2
+version: 0.2.3
 author: YeMoovo
 repo: https://github.com/YeMoovo/astrbot_plugin_petlink
 astrbot_version: ">=4.29.0"

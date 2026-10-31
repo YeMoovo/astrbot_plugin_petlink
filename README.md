@@ -11,6 +11,9 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 >
 > **0.2.2** 安全加固：`/balance` 纳入同一限流与并发控制，令牌使用常量时间比较，
 > 纯符号/emoji 会话名不再回退成同一个 `pet:---` 桶。
+>
+> **0.2.3**：`/balance` 使用独立限流桶，不挤占 `/chat` 额度；新增 `session_max_chars` 配置；
+> 明确 `device_token` 会覆盖多行 `tokens`，只支持单设备。
 
 ```
 桌宠（Electron）
@@ -42,14 +45,19 @@ AstrBot（大肥鱼 + 记忆/人格，全部照常生效）
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | `upstream_key` | 是 | AstrBot API Key，`abk_` 开头。在面板里签发，scope 只勾 **chat**（不要 provider） |
-| `tokens` | 是 | 桌宠的设备令牌，每行 `token=username`。`username` 是它在 AstrBot 里的身份（例如 `dsh_pet`） |
+| `tokens` | 否 | 多设备令牌，每行 `token=username`；`username` 是它在 AstrBot 里的身份（例如 `dsh_pet`） |
+| `device_token` | 否 | 单设备令牌；**填了会完全覆盖 `tokens` 多行**，只支持单人连接 |
+| `device_username` | 否 | `device_token` 对应的身份，默认 `dsh_pet` |
 | `listen_host` | 否 | 默认 `127.0.0.1`；要对外必须先配反向代理 + TLS，再改 `0.0.0.0` |
 | `listen_port` | 否 | 默认 `18787` |
 | `upstream_base` | 否 | 默认 `http://127.0.0.1:6185` |
 | `probe_path` | 否 | 鉴权探针路径，默认 `/api/v1/configs`。必须是**需要鉴权**的接口，见下文「鉴权探针」 |
 | `session_prefix` | 否 | 会话前缀，默认 `pet:`；防止与 WebChat 的 session_id 撞车 |
+| `session_max_chars` | 否 | 加前缀后的会话 ID 最大长度，默认 `200` |
 | `max_concurrent` / `max_pending` | 否 | 同时转发与排队的上限；在飞+排队超限直接 429 `busy` |
 | 其余 | 否 | 限流、超时、心跳、开关，见插件设置页说明 |
+
+> `device_token` 是单设备模式：只要填了它，`tokens` 里的多行会被完全忽略。需要多设备时请清空 `device_token`，只维护 `tokens`。
 
 `tokens` 示例：
 
