@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PetLink 桥接插件（AstrBot 侧）。
+"""dsh-pet 桥接插件（AstrBot 侧）。
 
 把桌宠的文本请求转发到 AstrBot 自带的 OpenAPI（默认 127.0.0.1:6185），
 并把上游的 SSE 原样回传给桌宠。桌宠侧只需要知道 baseUrl + 设备令牌，
@@ -34,7 +34,7 @@ try:  # AstrBot 4.x 标准导入
 except Exception:  # pragma: no cover - 本地单测时没有 astrbot
     import logging
 
-    logger = logging.getLogger("astrbot_plugin_petlink")
+    logger = logging.getLogger("astrbot_plugin_dsh_pet_bridge")
 
 try:  # AstrBot 4.x
     from astrbot.api.star import Context, Star
@@ -49,7 +49,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.0"
+PLUGIN_VERSION = "0.2.1"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -327,7 +327,7 @@ class DshPetBridge(Star):
             self._runner = web.AppRunner(app, access_log=None)
             await self._runner.setup()
             host = self._str("listen_host", "127.0.0.1")
-            port = self._int("listen_port", 8787, 1)
+            port = self._int("listen_port", 18787, 1)
             self._site = web.TCPSite(self._runner, host, port)
 
             for attempt in range(1, 4):

@@ -1,16 +1,19 @@
 # PetLink 桥接（astrbot_plugin_petlink）
 
-给 [PetLink 桌宠客户端](https://github.com/YeMoovo/petlink-client) 用的 AstrBot 侧桥接插件。
-协议与数据格式沿用上游 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 项目。
+给 PetLink 桌宠客户端用的 AstrBot 侧桥接插件。
+协议与数据格式沿用上游 [petlink](https://github.com/PC2005-cloud/dsh-pet) 项目。
 
 它在 AstrBot 进程内起一个小 HTTP 服务，把桌宠发来的文本转发到 AstrBot 自带的
 OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
+
+> **0.2.1 起默认监听端口改为 `18787`**，与客户端默认的 `http://127.0.0.1:18787` 一致，
+> 本机使用不再需要端口映射。旧配置里的 `8787` 需要改成 `18787`，或改客户端地址。
 
 ```
 桌宠（Electron）
    │  HTTPS + 设备令牌
    ▼
-本插件（默认 127.0.0.1:8787）
+本插件（默认 127.0.0.1:18787）
    │  HTTP + SSE → 127.0.0.1:6185/api/v1/chat
    ▼
 AstrBot（大肥鱼 + 记忆/人格，全部照常生效）
@@ -38,7 +41,7 @@ AstrBot（大肥鱼 + 记忆/人格，全部照常生效）
 | `upstream_key` | 是 | AstrBot API Key，`abk_` 开头。在面板里签发，scope 只勾 **chat**（不要 provider） |
 | `tokens` | 是 | 桌宠的设备令牌，每行 `token=username`。`username` 是它在 AstrBot 里的身份（例如 `dsh_pet`） |
 | `listen_host` | 否 | 默认 `127.0.0.1`；要对外必须先配反向代理 + TLS，再改 `0.0.0.0` |
-| `listen_port` | 否 | 默认 `8787` |
+| `listen_port` | 否 | 默认 `18787` |
 | `upstream_base` | 否 | 默认 `http://127.0.0.1:6185` |
 | `probe_path` | 否 | 鉴权探针路径，默认 `/api/v1/configs`。必须是**需要鉴权**的接口，见下文「鉴权探针」 |
 | `session_prefix` | 否 | 会话前缀，默认 `pet:`；防止与 WebChat 的 session_id 撞车 |
@@ -62,10 +65,10 @@ petlink-demo-token=dsh_pet
 
 ```powershell
 # 1) 探活：ok=true 表示服务在跑；ready=true 才表示 Key 与令牌都可用
-curl.exe -s "http://127.0.0.1:8787/health?refresh=1"
+curl.exe -s "http://127.0.0.1:18787/health?refresh=1"
 
 # 2) 对话：应看到 SSE 逐字返回
-curl.exe -N -X POST http://127.0.0.1:8787/chat `
+curl.exe -N -X POST http://127.0.0.1:18787/chat `
   -H "Authorization: Bearer petlink-demo-token" `
   -H "Content-Type: application/json" `
   -d '{\"message\":\"在吗\",\"session_id\":\"selftest-1\"}'
@@ -245,7 +248,7 @@ curl.exe -N -X POST http://127.0.0.1:8787/chat `
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 启动日志 `端口绑定失败` | 8787 被占用 | 改 `listen_port`，或关掉占用的进程 |
+| 启动日志 `端口绑定失败` | 18787 被占用 | 改 `listen_port`，或关掉占用的进程 |
 | `/health` 里 `upstream.reachable=false` | 6185 没起 / 地址不对 | 确认 AstrBot 面板能打开，检查 `upstream_base` |
 | `auth_state=invalid_key` | Key 错、过期或被吊销 | 重新签发 `abk_` Key，改完加 `?refresh=1` |
 | `auth_state=scope_denied` | 探针都 403，Key 有效但 scope 不够 | 换 `probe_path`，或启用已确认只读的 `probe_fallback_path`；此时 `ready=false`、`degraded=true` |

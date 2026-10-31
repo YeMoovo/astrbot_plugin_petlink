@@ -68,9 +68,9 @@
   },
   "listen_port": {
     "type": "int",
-    "default": 8787,
+    "default": 18787,
     "description": "监听端口",
-    "hint": "默认 8787，请确保未被占用。"
+    "hint": "默认 18787，请确保未被占用。"
   },
   "upstream_base": {
     "type": "string",
