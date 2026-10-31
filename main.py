@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 import tempfile
@@ -49,7 +50,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.1"
+PLUGIN_VERSION = "0.2.2"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -599,6 +600,16 @@ class DshPetBridge(Star):
             return header[7:].strip()
         return request.headers.get("X-Pet-Token", "").strip()
 
+    def _match_token(self, token: str) -> Optional[str]:
+        """常量时间比较所有已知令牌，避免字典查找的短路时序。"""
+        if not token:
+            return None
+        probe = token.encode("utf-8")
+        for known, username in self._tokens.items():
+            if hmac.compare_digest(known.encode("utf-8"), probe):
+                return username
+        return None
+
     def _effective_username(self, token_username: str) -> str:
         """决定这次请求以谁的身份进入 AstrBot。
 
@@ -624,6 +635,10 @@ class DshPetBridge(Star):
         prefix = self._str("session_prefix", "pet:")
         limit = 200
         cleaned = "".join(ch if (ch.isalnum() or ch in "_:.-") else "-" for ch in session_id)
+        body = cleaned[len(prefix):] if prefix and cleaned.startswith(prefix) else cleaned
+        # 纯符号/emoji 清理后只剩连字符：不要造出所有会话共用一个 pet:--- 桶。
+        if not any(ch.isalnum() for ch in body):
+            return ""
         if prefix and not cleaned.startswith(prefix):
             cleaned = prefix + cleaned[: max(0, limit - len(prefix))]
         return cleaned[:limit]
@@ -631,26 +646,33 @@ class DshPetBridge(Star):
     async def _handle_balance(self, request: web.Request) -> web.StreamResponse:
         """代查余额：客户端拿不到上游 Key，只拿到归一化后的钱包列表。"""
         cors = self._cors_headers(request)
+        if self._disabled_reason or self._session is None or self._sem is None or self._limiter is None:
+            return self._json({"error": "bridge_not_ready"}, 503, cors)
         if not self._tokens:
             return self._json({"error": "tokens_not_configured"}, 503, cors)
         token = self._extract_token(request)
-        if not token or token not in self._tokens:
+        if self._match_token(token) is None:
             return self._json({"error": "unauthorized"}, 401, cors)
+        if not self._limiter.allow(token):
+            return self._json(
+                {"error": "rate_limited"},
+                429,
+                {**cors, "Retry-After": "5"},
+            )
         url = str(self._raw("balance_url", "") or "").strip()
         key = str(self._raw("balance_key", "") or "").strip()
         if not url or not key:
             return self._json({"error": "balance_not_configured"}, 503, cors)
-        if self._session is None:
-            return self._json({"error": "bridge_not_ready"}, 503, cors)
         try:
-            async with self._session.get(
-                url,
-                headers={"authorization": f"Bearer {key}"},
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as response:
-                if response.status != 200:
-                    return self._json({"error": "balance_http", "status": response.status}, 502, cors)
-                data = await response.json(content_type=None)
+            async with self._sem:
+                async with self._session.get(
+                    url,
+                    headers={"authorization": f"Bearer {key}"},
+                    timeout=aiohttp.ClientTimeout(total=15),
+                ) as response:
+                    if response.status != 200:
+                        return self._json({"error": "balance_http", "status": response.status}, 502, cors)
+                    data = await response.json(content_type=None)
         except Exception as error:  # 网络/JSON 都归成一次可展示的失败
             logger.warning("[petlink] 余额查询失败：%s", error)
             return self._json({"error": "balance_fetch"}, 502, cors)
@@ -690,7 +712,7 @@ class DshPetBridge(Star):
 
         # 顺序要求：先验令牌，再解析请求体，最后才做 owner 覆盖。
         # 身份覆盖只发生在鉴权之后，未通过令牌的请求根本走不到 body。
-        username = self._tokens.get(token)
+        username = self._match_token(token)
         if not username:
             self._counters["rejected"] += 1
             logger.warning("[petlink] 未知令牌 fingerprint=%s", fingerprint(token))
