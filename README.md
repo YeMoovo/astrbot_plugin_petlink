@@ -1,7 +1,7 @@
 # PetLink 桥接（astrbot_plugin_petlink）
 
 给 PetLink 桌宠客户端用的 AstrBot 侧桥接插件。
-协议与数据格式沿用上游 [petlink](https://github.com/PC2005-cloud/dsh-pet) 项目。
+协议与数据格式沿用上游 [dsh-pet](https://github.com/PC2005-cloud/dsh-pet) 项目。
 
 它在 AstrBot 进程内起一个小 HTTP 服务，把桌宠发来的文本转发到 AstrBot 自带的
 OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。

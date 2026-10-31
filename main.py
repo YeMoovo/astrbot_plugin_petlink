@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""dsh-pet 桥接插件（AstrBot 侧）。
+"""PetLink 桥接插件（AstrBot 侧）。
 
 把桌宠的文本请求转发到 AstrBot 自带的 OpenAPI（默认 127.0.0.1:6185），
 并把上游的 SSE 原样回传给桌宠。桌宠侧只需要知道 baseUrl + 设备令牌，
@@ -34,7 +34,7 @@ try:  # AstrBot 4.x 标准导入
 except Exception:  # pragma: no cover - 本地单测时没有 astrbot
     import logging
 
-    logger = logging.getLogger("astrbot_plugin_dsh_pet_bridge")
+    logger = logging.getLogger("astrbot_plugin_petlink")
 
 try:  # AstrBot 4.x
     from astrbot.api.star import Context, Star
