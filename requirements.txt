@@ -1,0 +1,2 @@
+# 本插件只使用 AstrBot 自带依赖（aiohttp），无需额外安装任何第三方包。
+# 保留本文件是为了兼容会执行 pip install -r requirements.txt 的安装流程。

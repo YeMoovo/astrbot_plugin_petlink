@@ -1,0 +1,10 @@
+PetLink 桥接插件
+================
+
+本插件为 PetLink 桌宠客户端提供 AstrBot 侧的对话转发。
+
+协议、接口形状与部分文档沿用上游 PC2005-cloud/dsh-pet 项目：
+  https://github.com/PC2005-cloud/dsh-pet
+
+上游项目要求衍生 / 改版作品在 GitHub 仓库、产品官网等公开渠道保留原作者地址；
+本项目同样以 MIT 发布代码，并保留该署名。

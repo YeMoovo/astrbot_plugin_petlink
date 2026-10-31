@@ -1,0 +1,223 @@
+{
+  "config_version": {
+    "type": "int",
+    "default": 1,
+    "description": "配置版本",
+    "hint": "升级插件时用于迁移，请勿手动修改。"
+  },
+  "auto_start": {
+    "type": "bool",
+    "default": true,
+    "description": "自动启动桥接",
+    "hint": "插件加载时自动启动服务；关闭后需要重载插件才能再启动。"
+  },
+  "feature_chat": {
+    "type": "bool",
+    "default": true,
+    "description": "启用 /chat",
+    "hint": "桌宠的对话入口；关闭后只保留探活。"
+  },
+  "feature_health": {
+    "type": "bool",
+    "default": true,
+    "description": "启用 /health",
+    "hint": "提供 / 与 /health，供桌宠判断桥是否在线。"
+  },
+  "feature_streaming": {
+    "type": "bool",
+    "default": true,
+    "description": "流式返回",
+    "hint": "开启后桌宠逐字显示；关闭则由 AstrBot 一次返回整段。"
+  },
+  "feature_session": {
+    "type": "bool",
+    "default": true,
+    "description": "透传会话 ID",
+    "hint": "开启后同一 session_id 保持上下文；关闭则每次都是新会话。"
+  },
+  "feature_cors": {
+    "type": "bool",
+    "default": false,
+    "description": "浏览器跨域",
+    "hint": "默认关闭。仅当浏览器页面直接调用时需要打开，并填写允许来源。"
+  },
+  "cors_origins": {
+    "type": "string",
+    "default": "",
+    "description": "允许来源",
+    "hint": "逗号分隔；留空表示 *。仅跨域开启时生效。"
+  },
+  "feature_metrics": {
+    "type": "bool",
+    "default": false,
+    "description": "启用 /metrics",
+    "hint": "返回请求计数与运行时长，供监控使用。"
+  },
+  "feature_debug_dump": {
+    "type": "bool",
+    "default": false,
+    "description": "请求落盘",
+    "hint": "把发往上游的请求体写到系统临时目录；含对话内容，默认关闭。"
+  },
+  "listen_host": {
+    "type": "string",
+    "default": "127.0.0.1",
+    "options": ["127.0.0.1", "0.0.0.0"],
+    "description": "监听地址",
+    "hint": "默认只监听本机。改成 0.0.0.0 会暴露到局域网/公网，必须配合防火墙与 TLS 反向代理。"
+  },
+  "listen_port": {
+    "type": "int",
+    "default": 8787,
+    "description": "监听端口",
+    "hint": "默认 8787，请确保未被占用。"
+  },
+  "upstream_base": {
+    "type": "string",
+    "default": "http://127.0.0.1:6185",
+    "description": "OpenAPI 地址",
+    "hint": "AstrBot 面板与 OpenAPI 同端口，通常就是 http://127.0.0.1:6185。"
+  },
+  "upstream_key": {
+    "type": "string",
+    "default": "",
+    "obscured": true,
+    "description": "API Key",
+    "hint": "abk_ 开头，只存在服务端，不会下发给桌宠；scope 至少包含 chat。"
+  },
+  "probe_path": {
+    "type": "string",
+    "default": "/api/v1/configs",
+    "description": "鉴权探针路径",
+    "hint": "必须是需要鉴权的接口。401=Key 无效，403=Key 有效但 scope 不够；不要用 openapi.json（无鉴权）。"
+  },
+  "probe_fallback_path": {
+    "type": "string",
+    "default": "",
+    "description": "备用探针",
+    "hint": "主探针 403/404 时再试一次；默认关闭，因为该路径是否只读尚未验证。"
+  },
+  "allow_unverified": {
+    "type": "bool",
+    "default": false,
+    "description": "允许未证实放行",
+    "hint": "开启后 Key 未被 200 证实也会把 ready 置为 true；默认关闭。"
+  },
+  "identity_mode": {
+    "type": "string",
+    "default": "token",
+    "options": ["token", "owner"],
+    "description": "身份模式",
+    "hint": "token=桌宠是独立身份与独立记忆桶；owner=用 owner_id 与你共用记忆桶，但上下文会混在一起。"
+  },
+  "allow_client_identity": {
+    "type": "bool",
+    "default": false,
+    "description": "允许客户端选身份",
+    "hint": "仅 token 模式有效：开启后 /chat 的 username 会覆盖 tokens 映射。owner 模式永远以 owner_id 为准，客户端改不了。"
+  },
+  "owner_id": {
+    "type": "string",
+    "default": "",
+    "description": "owner 身份",
+    "hint": "identity_mode=owner 时必填；填你在 AstrBot 里的 QQ 号或已有 username。为空会回退 tokens 身份并告警——回退后记忆会落在令牌对应的那个人身上，不再是 owner。"
+  },
+  "session_prefix": {
+    "type": "string",
+    "default": "pet:",
+    "description": "会话前缀",
+    "hint": "默认 pet:，避免与 WebChat 会话撞车；留空则不加。"
+  },
+  "tokens": {
+    "type": "text",
+    "default": "",
+    "description": "设备令牌（旧版多行，可留空）",
+    "hint": "新版客户端请用下面的「单个设备令牌」，这里留空即可；它只为旧配置兼容：一行一个 token=username。"
+  },
+  "device_token": {
+    "type": "string",
+    "default": "",
+    "obscured": true,
+    "description": "单个设备令牌",
+    "hint": "把客户端「连接设置」里生成并复制的令牌粘贴到这里，一个就够；填了它就不用管上面的多行。"
+  },
+  "device_username": {
+    "type": "string",
+    "default": "dsh_pet",
+    "description": "设备身份",
+    "hint": "桌宠在 AstrBot 里默认叫什么；客户端选了身份时会以客户端为准。"
+  },
+  "balance_url": {
+    "type": "string",
+    "default": "https://api.deepseek.com/user/balance",
+    "description": "余额接口",
+    "hint": "插件代查余额的地址；默认 DeepSeek。留空则 /balance 返回 balance_not_configured。"
+  },
+  "balance_key": {
+    "type": "string",
+    "default": "",
+    "obscured": true,
+    "description": "余额 API Key",
+    "hint": "只存在服务端；DeepSeek 的 sk- Key。客户端拿不到它。"
+  },
+  "max_chars": {
+    "type": "int",
+    "default": 2000,
+    "description": "单条字符上限",
+    "hint": "超出返回 413；中文与 emoji 都按字符计数。"
+  },
+  "max_body_kb": {
+    "type": "int",
+    "default": 64,
+    "description": "请求体上限 KB",
+    "hint": "超出由 aiohttp 直接拒绝。"
+  },
+  "rate_per_min": {
+    "type": "int",
+    "default": 30,
+    "description": "每分钟请求数",
+    "hint": "按令牌限流；0 表示不限制。"
+  },
+  "rate_burst": {
+    "type": "int",
+    "default": 5,
+    "description": "突发容量",
+    "hint": "令牌桶容量，允许短时间突发。"
+  },
+  "timeout_sec": {
+    "type": "int",
+    "default": 120,
+    "description": "上游总超时",
+    "hint": "单次对话从发出到结束的上限（秒）。"
+  },
+  "connect_timeout_sec": {
+    "type": "int",
+    "default": 10,
+    "description": "连接超时",
+    "hint": "连接上游的上限（秒）。"
+  },
+  "heartbeat_sec": {
+    "type": "int",
+    "default": 15,
+    "description": "心跳间隔",
+    "hint": "空闲时插入 : ping，防止反向代理掐断长思考（秒）。"
+  },
+  "max_concurrent": {
+    "type": "int",
+    "default": 4,
+    "description": "最大并发",
+    "hint": "同时转发的上游请求数。"
+  },
+  "max_pending": {
+    "type": "int",
+    "default": 4,
+    "description": "最大排队",
+    "hint": "在飞之外允许排队的数量；超过 max_concurrent + max_pending 返回 429 busy。"
+  },
+  "log_content": {
+    "type": "bool",
+    "default": false,
+    "description": "记录对话正文",
+    "hint": "默认关闭，避免隐私落盘；排障时可临时打开。"
+  }
+}
