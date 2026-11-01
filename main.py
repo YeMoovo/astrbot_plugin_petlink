@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.7"
+PLUGIN_VERSION = "0.2.8"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -594,13 +594,16 @@ class DshPetBridge(Star):
                 return cleaned
         return token_username
 
-    def _namespaced_session(self, session_id: str) -> str:
-        """给桌宠会话加前缀，避免与 WebChat 的会话 id 撞车，也方便按前缀检索。
+    def _namespaced_session(self, session_id: str, identity: str = "") -> str:
+        """给桌宠会话加前缀，并按身份隔离，避免切换 QQ/自定义后 session 冲突。
 
         注意顺序：先按「总长 - 前缀长」截断原始 id，再加前缀，
         否则超长 id 会把 ``pet:`` 自己截掉。
         """
         prefix = self._str("session_prefix", "pet:")
+        identity_part = "".join(ch if (ch.isalnum() or ch in "_:.-") else "-" for ch in identity).strip("-")
+        if identity_part:
+            prefix = f"{prefix}{identity_part}:"
         limit = self._int("session_max_chars", 200, 16)
         cleaned = "".join(ch if (ch.isalnum() or ch in "_:.-") else "-" for ch in session_id)
         body = cleaned[len(prefix):] if prefix and cleaned.startswith(prefix) else cleaned
@@ -727,7 +730,7 @@ class DshPetBridge(Star):
         if self._bool("feature_session", True):
             raw_session = body.get("session_id")
             if isinstance(raw_session, (str, int)) and str(raw_session).strip():
-                session_id = self._namespaced_session(str(raw_session).strip())
+                session_id = self._namespaced_session(str(raw_session).strip(), username)
 
         payload = build_payload(
             message=message,
