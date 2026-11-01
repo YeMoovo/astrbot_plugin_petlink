@@ -20,6 +20,8 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 >
 > **0.2.5**：身份由客户端决定，插件移除 `identity_mode` / `owner_id` / `allow_client_identity` 配置；
 > 健康检查对仅有 chat scope 的 Key 不再判死，测试连接可直接通过。
+>
+> **0.2.6**：`/health` 增加 `token_ok`；带设备令牌请求时会校验令牌，客户端测试连接可发现令牌不一致。
 
 ```
 桌宠（Electron）
@@ -254,7 +256,7 @@ curl.exe -N -X POST http://127.0.0.1:18787/chat `
   测试里已放入一条 `reasoning` 帧，验证它原样透传且不崩溃。
 - `probe_fallback_path` 的只读性**未实测**（可能创建空会话），所以默认关闭；
   启用前请先用数据库快照确认。
-- `identity_mode=owner` 只是把身份切成你，**能否连通记忆桶取决于 Iris 的键**；
+- 身份由客户端传入，**能否连通记忆桶取决于 Iris 的键**；
   桥这层无法替 Iris 合并。
 - 探针的 403 语义依赖 AstrBot 的 scope 划分；换版本后请重新看一次 `/health`。
 - `session_id` 超过 200 字符时，先截断原始 id 再加 `pet:` 前缀，前缀不会被截掉。

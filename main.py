@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.5"
+PLUGIN_VERSION = "0.2.6"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -517,6 +517,8 @@ class DshPetBridge(Star):
         probe = await self._probe_upstream(force=force)
         started = self._started_at != 0 and self._disabled_reason == ""
         configured = bool(self._tokens)
+        supplied = self._extract_token(request)
+        token_ok = None if not supplied or not configured else self._match_token(supplied) is not None
         # ready 必须是「被 200 证实过」。403/未知只能算 degraded：
         # 默认不让桌宠放行，除非显式打开 allow_unverified。
         verified = probe.get("auth_ok") is True
@@ -531,6 +533,7 @@ class DshPetBridge(Star):
             started
             and configured
             and probe.get("reachable")
+            and token_ok is not False
             and (verified or (degraded and (allow_unverified or scope_denied) and not public_endpoint))
         )
         payload: Dict[str, Any] = {
@@ -539,6 +542,7 @@ class DshPetBridge(Star):
             "auth_verified": verified,
             "degraded": degraded,
             "allow_unverified": allow_unverified,
+            "token_ok": token_ok,
             "auth_hint": _auth_hint(probe),
             "identity_mode": "client",
             "version": PLUGIN_VERSION,
@@ -716,8 +720,6 @@ class DshPetBridge(Star):
         if self._bool("log_content", False):
             logger.info("[petlink] chat msg fingerprint=%s text=%r", fingerprint(token), message[:80])
 
-        # 身份解析顺序：owner 模式必须压过客户端自报，否则“共用你的桶”等于失效。
-        # token 模式才看 allow_client_identity（默认关闭），关着就一律用令牌映射。
         # 身份由客户端决定；令牌只决定这条连接是否可信。
         username = self._effective_username(username, body.get("username"))
 
