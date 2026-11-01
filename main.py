@@ -21,21 +21,14 @@ import hashlib
 import hmac
 import json
 import os
-import tempfile
 import time
 import unicodedata
-import uuid
 from typing import Any, Dict, Optional, Tuple
 
 import aiohttp
 from aiohttp import web
 
-try:  # AstrBot 4.x 标准导入
-    from astrbot.api import logger
-except Exception:  # pragma: no cover - 本地单测时没有 astrbot
-    import logging
-
-    logger = logging.getLogger("astrbot_plugin_dsh_pet_bridge")
+from astrbot.api import logger
 
 try:  # AstrBot 4.x
     from astrbot.api.star import Context, Star
@@ -50,7 +43,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.3"
+PLUGIN_VERSION = "0.2.4"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -786,9 +779,6 @@ class DshPetBridge(Star):
             streaming=self._bool("feature_streaming", True),
         )
 
-        if self._bool("feature_debug_dump", False):
-            self._dump_debug(payload)
-
         max_concurrent = self._int("max_concurrent", 4, 1)
         max_pending = self._int("max_pending", 4, 0)
         self._pending += 1
@@ -935,16 +925,6 @@ class DshPetBridge(Star):
 
     def _json(self, payload: Dict[str, Any], status: int, headers: Dict[str, str]) -> web.Response:
         return web.json_response(payload, status=status, headers=headers)
-
-    def _dump_debug(self, payload: Dict[str, Any]) -> None:
-        try:
-            directory = os.path.join(tempfile.gettempdir(), "dsh_pet_bridge_debug")
-            os.makedirs(directory, exist_ok=True)
-            name = f"{time.strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}.json"
-            with open(os.path.join(directory, name), "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-        except Exception as exc:  # pragma: no cover
-            logger.debug("[petlink] debug dump 失败：%s", exc)
 
 
 __all__ = ["DshPetBridge", "parse_tokens", "build_payload", "RateLimiter"]

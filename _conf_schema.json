@@ -53,12 +53,6 @@
     "description": "启用 /metrics",
     "hint": "返回请求计数与运行时长，供监控使用。"
   },
-  "feature_debug_dump": {
-    "type": "bool",
-    "default": false,
-    "description": "请求落盘",
-    "hint": "把发往上游的请求体写到系统临时目录；含对话内容，默认关闭。"
-  },
   "listen_host": {
     "type": "string",
     "default": "127.0.0.1",

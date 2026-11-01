@@ -14,6 +14,9 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 >
 > **0.2.3**：`/balance` 使用独立限流桶，不挤占 `/chat` 额度；新增 `session_max_chars` 配置；
 > 明确 `device_token` 会覆盖多行 `tokens`，只支持单设备。
+>
+> **0.2.4**：移除 `feature_debug_dump` 临时目录落盘功能；logger 只从 `astrbot.api` 导入，
+> 移除内置 `logging` 回退，符合插件市场上架规范。
 
 ```
 桌宠（Electron）
