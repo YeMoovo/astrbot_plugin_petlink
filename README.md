@@ -17,6 +17,9 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 >
 > **0.2.4**：移除 `feature_debug_dump` 临时目录落盘功能；logger 只从 `astrbot.api` 导入，
 > 移除内置 `logging` 回退，符合插件市场上架规范。
+>
+> **0.2.5**：身份由客户端决定，插件移除 `identity_mode` / `owner_id` / `allow_client_identity` 配置；
+> 健康检查对仅有 chat scope 的 Key 不再判死，测试连接可直接通过。
 
 ```
 桌宠（Electron）
@@ -148,7 +151,7 @@ curl.exe -N -X POST http://127.0.0.1:18787/chat `
   "ready": true,
   "auth_verified": true,
   "degraded": false,
-  "identity_mode": "token",
+  "identity_mode": "client",
   "version": "0.1.5",
   "probe_at": 1793386000,
   "probe_age_sec": 1,
@@ -196,60 +199,26 @@ curl.exe -N -X POST http://127.0.0.1:18787/chat `
 
 ## 身份与会话
 
-- **身份优先级**：`identity_mode=owner` 时永远用 `owner_id`，客户端传的 `username` 无效；
-  `identity_mode=token` 且 `allow_client_identity=true` 时，客户端才能选身份（默认关闭）。
-
-> ⚠️ **身份冒充风险（不是普通隐私开关）**：`allow_client_identity=true` 时，任何拿到设备令牌的人
-> 都能把 `username` 改成任意用户，从而让 AstrBot 以那个人的身份读写历史。只有在你完全信任
-> 令牌持有人、且接受这个风险时才开启。
-> owner 的桶额外有保护：token 模式下即使开启客户端身份，`username == owner_id` 也会被拒绝。
-> 比较前会做 NFKC + 去空白/零宽 + `casefold`；**代价是只差大小写的两个名字会被当成同一身份**，
-> 这是为了防止 `MQ-xxx`、全角数字等变形绕过 owner 保护。
-
-- WebChat/OpenAPI 不校验账号是否存在，两种身份都能用，区别只在记忆落点。
-- **owner 模式不会改 `session_prefix`**：同一个你在 Iris 里会同时看到 `umo=你的QQ` 和
-  `pet:xxx` 两个会话。桶是否合并取决于 Iris 用 `user_id` 还是 `platform/session` 做键。
-- **桥只能决定「以谁的身份进去」，不能替 Iris 合并两个桶。**
-- **session_id 一律加 `pet:` 前缀**（可配置），避免和 WebChat 会话撞车；它只是标签，不会让 Iris 认亲。
+- 身份由客户端决定：客户端的「QQ号模式 / 自定义模式」会把 `username` 一并发给插件；
+- 插件只校验 `username` 格式（长度 1–64，仅字母数字与 `_ - . :`），合法就用它，缺失或非法才回退到令牌映射的身份；
+- 令牌只决定这条连接是否可信，不再决定用哪个身份；
+- 想和 QQ 共用记忆：客户端选 QQ号模式，填你的 QQ 号；
+- 想用独立桌宠身份：客户端选自定义模式，填一个名字；
+- `session_id` 仍会加 `pet:` 前缀，避免和 WebChat 会话撞车；它只是标签，是否共享长期记忆取决于 AstrBot/Iris 的桶键。
 
 ### 记忆桶怎么连
 
-1. 先试 `identity_mode=owner` + `owner_id=你的QQ号`（纯配置，零代码）；
-2. 发一句话，再在 QQ 里问它记不记得 —— 记得，说明桶按 user_id 走，问题解决；
-3. 仍不记得，说明 Iris 的桶键包含 platform/session，桥这层无解，得在 Iris 侧加身份别名或补丁。
+1. 客户端选 QQ号模式，填自己的 QQ 号；
+2. 发一句话，再在 QQ 里问它记不记得；
+3. 仍不记得，说明 Iris 的桶键包含 platform/session，桥这层无解，需要在 Iris 侧加身份别名或补丁。
 
-**实测（2026-10-31，identity=dsh_pet）**：
-
-- 同一 `session=pet:selftest-memory`：第一轮「我叫阿测」，第二轮问「我叫什么」答出「阿测」→ 短上下文按 session 保留；
-- 换 `session=pet:selftest-memory-2` 仍答出「阿测」→ Iris 长期记忆按身份/平台桶走，不随 session 隔离。
-
-所以：要连续对话就保持同一个 session；要隔离记忆就换 username/身份，别只换 session。
-
----
-
-## 升级行为变更（0.1.11 起）
-
-- `allow_client_identity` 的默认值从 `true` 改为 `false`；
-- 旧配置如果没有显式保存过这一项，升级后客户端「QQ号模式/自定义模式」会静默失效，
-  回退到 `tokens` 右边那个身份；
-- 启动日志会提示：
-
-  ```
-  客户端身份覆盖已关闭（默认 false）；旧版依赖它的请显式开启 allow_client_identity=true
-  ```
-
-- 继续用客户端选身份：显式打开 `allow_client_identity`，并接受上面的冒充风险；
-- 更安全的做法：`identity_mode=owner` + 非空 `owner_id`，客户端无法覆盖；
-- **`owner_id` 为空时**：启动告警并回退 `tokens` 身份，**记忆会落到令牌对应的人身上**，
-  不再是 owner。
-
----
+要连续对话就保持同一个 session；要隔离记忆就换客户端身份，不要只换 session。
 
 ## 安全默认值
 
 - 默认只监听 `127.0.0.1`，公网访问必须自己加反向代理与 TLS；
 - 没有令牌就拒绝所有请求，不存在「空令牌放行」；
-- 身份默认不允许客户端自报（`allow_client_identity=false`）；`identity_mode=owner` 时客户端永远改不了身份；
+- 身份默认由客户端传入并校验，令牌只决定连接可信；
 - 默认不记录对话正文（`log_content=false`）；
 - 日志里令牌只出现 SHA-256 前 8 位指纹；
 - 探针只发 GET，不写数据、不调模型。

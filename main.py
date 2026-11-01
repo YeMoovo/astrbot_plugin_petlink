@@ -9,7 +9,7 @@
 设计约束：
 - 默认只监听 127.0.0.1，对外必须自己配反向代理/TLS；
 - 没有配置令牌时拒绝所有 /chat 请求，不提供「空令牌放行」；
-- 身份（username）由令牌映射决定，客户端自报无效；
+- 身份（username）由客户端传入并在令牌鉴权后校验，令牌只决定连接可信；
 - 所有环境相关的值都走配置，代码里不写死地址、端口、QQ 号；
 - 运行在 AstrBot 进程内，所有 handler 全包异常，绝不向上冒泡。
 """
@@ -22,7 +22,6 @@ import hmac
 import json
 import os
 import time
-import unicodedata
 from typing import Any, Dict, Optional, Tuple
 
 import aiohttp
@@ -43,7 +42,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.4"
+PLUGIN_VERSION = "0.2.5"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -89,22 +88,6 @@ def parse_tokens(raw: Any) -> Dict[str, str]:
         if token and username:
             result[token] = username
     return result
-
-
-def _normalize_identity(value: Any) -> str:
-    """身份比较前的归一化：None/数字先转字符串，再 NFKC + 去空白/零宽 + casefold。"""
-    if value is None:
-        return ""
-    normalized = unicodedata.normalize("NFKC", str(value))
-    normalized = "".join(
-        ch for ch in normalized if not ch.isspace() and unicodedata.category(ch) != "Cf"
-    )
-    return normalized.casefold()
-
-
-def _same_identity(left: Any, right: Any) -> bool:
-    """大小写、全角、空白、零宽字符都不应成为绕过 owner 保护的变形。"""
-    return _normalize_identity(left) == _normalize_identity(right)
 
 
 _AUTH_HINTS: Dict[str, str] = {
@@ -285,15 +268,6 @@ class DshPetBridge(Star):
             # 这是一条「我知道 Key 可能没 scope，仍然放行」的调试开关，启动时必须可见。
             logger.warning(
                 "[petlink] allow_unverified=true：Key 未被 200 证实也会放行，仅用于调试，生产请关闭"
-            )
-        identity_mode = self._str("identity_mode", "token").lower()
-        if identity_mode == "owner" and not self._str("owner_id", "").strip():
-            logger.warning(
-                "[petlink] identity_mode=owner 但 owner_id 为空：本次启动回退 tokens 身份，请补 owner_id"
-            )
-        if identity_mode == "token" and not self._bool("allow_client_identity", False):
-            logger.info(
-                "[petlink] 客户端身份覆盖已关闭（默认 false）；旧版依赖它的请显式开启 allow_client_identity=true"
             )
         self._limiter = RateLimiter(self._int("rate_per_min", 30), self._int("rate_burst", 5, 1))
         # /balance 单独一个桶：刷余额不挤占 /chat 的额度。
@@ -549,12 +523,15 @@ class DshPetBridge(Star):
         degraded = bool(probe.get("reachable") and probe.get("auth_ok") is None)
         # 公开路径连 allow_unverified 都不该放行：它连「Key 有没有权限」都证明不了。
         public_endpoint = probe.get("auth_state") == "public_endpoint"
+        # 403 scope_denied 说明 Key 本身有效，只是探针接口（configs）权限不够；
+        # 对只申请 chat 的正常部署，这不应把整个桥接判死，聊天时会再验证一次。
+        scope_denied = probe.get("auth_state") == "scope_denied"
         allow_unverified = self._bool("allow_unverified", False)
         ready = bool(
             started
             and configured
             and probe.get("reachable")
-            and (verified or (degraded and allow_unverified and not public_endpoint))
+            and (verified or (degraded and (allow_unverified or scope_denied) and not public_endpoint))
         )
         payload: Dict[str, Any] = {
             "ok": started,
@@ -563,7 +540,7 @@ class DshPetBridge(Star):
             "degraded": degraded,
             "allow_unverified": allow_unverified,
             "auth_hint": _auth_hint(probe),
-            "identity_mode": self._str("identity_mode", "token").lower(),
+            "identity_mode": "client",
             "version": PLUGIN_VERSION,
             "upstream": probe,
             "probe_at": int(probe.get("probe_at") or 0),
@@ -605,21 +582,13 @@ class DshPetBridge(Star):
                 return username
         return None
 
-    def _effective_username(self, token_username: str) -> str:
-        """决定这次请求以谁的身份进入 AstrBot。
-
-        - ``identity_mode=token``（默认）：用 tokens 里的 username，桌宠是独立身份；
-        - ``identity_mode=owner``：强制用 ``owner_id``，让桌宠和你共用同一记忆桶。
-          代价是 QQ 与桌宠的上下文会混在一起，且拿到令牌的人等于拿到了你的身份。
-        """
-        if self._str("identity_mode", "token").lower() != "owner":
-            return token_username
-        owner = self._str("owner_id", "").strip()
-        if not owner:
-            # 启动时已警告过一次，这里不再逐请求刷日志；回退到令牌身份，绝不落到空桶。
-            logger.debug("[petlink] owner_id 为空，回退到 tokens 身份")
-            return token_username
-        return owner
+    def _effective_username(self, token_username: str, requested: Any) -> str:
+        """客户端决定身份；校验后覆盖令牌映射，非法或空值回退令牌身份。"""
+        if isinstance(requested, str):
+            cleaned = requested.strip()
+            if 0 < len(cleaned) <= 64 and all(ch.isalnum() or ch in "_-.:" for ch in cleaned):
+                return cleaned
+        return token_username
 
     def _namespaced_session(self, session_id: str) -> str:
         """给桌宠会话加前缀，避免与 WebChat 的会话 id 撞车，也方便按前缀检索。
@@ -749,22 +718,8 @@ class DshPetBridge(Star):
 
         # 身份解析顺序：owner 模式必须压过客户端自报，否则“共用你的桶”等于失效。
         # token 模式才看 allow_client_identity（默认关闭），关着就一律用令牌映射。
-        identity_mode = self._str("identity_mode", "token").lower()
-        if identity_mode == "owner":
-            username = self._effective_username(username)
-        elif self._bool("allow_client_identity", False):
-            requested = body.get("username")
-            if isinstance(requested, str):
-                cleaned = requested.strip()
-                if 0 < len(cleaned) <= 64 and all(ch.isalnum() or ch in "_-.:" for ch in cleaned):
-                    # owner_id 是最高价值的桶：即使开了客户端身份，也不允许直接冒用。
-                    owner_id = self._str("owner_id", "").strip()
-                    if owner_id and _same_identity(cleaned, owner_id):
-                        logger.warning(
-                            "[petlink] 拒绝客户端冒用 owner 身份 fingerprint=%s", fingerprint(token)
-                        )
-                    else:
-                        username = cleaned
+        # 身份由客户端决定；令牌只决定这条连接是否可信。
+        username = self._effective_username(username, body.get("username"))
 
         session_id: Optional[str] = None
         if self._bool("feature_session", True):

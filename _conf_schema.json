@@ -97,25 +97,6 @@
     "description": "允许未证实放行",
     "hint": "开启后 Key 未被 200 证实也会把 ready 置为 true；默认关闭。"
   },
-  "identity_mode": {
-    "type": "string",
-    "default": "token",
-    "options": ["token", "owner"],
-    "description": "身份模式",
-    "hint": "token=桌宠是独立身份与独立记忆桶；owner=用 owner_id 与你共用记忆桶，但上下文会混在一起。"
-  },
-  "allow_client_identity": {
-    "type": "bool",
-    "default": false,
-    "description": "允许客户端选身份",
-    "hint": "仅 token 模式有效：开启后 /chat 的 username 会覆盖 tokens 映射。owner 模式永远以 owner_id 为准，客户端改不了。"
-  },
-  "owner_id": {
-    "type": "string",
-    "default": "",
-    "description": "owner 身份",
-    "hint": "identity_mode=owner 时必填；填你在 AstrBot 里的 QQ 号或已有 username。为空会回退 tokens 身份并告警——回退后记忆会落在令牌对应的那个人身上，不再是 owner。"
-  },
   "session_prefix": {
     "type": "string",
     "default": "pet:",
