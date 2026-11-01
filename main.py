@@ -42,7 +42,7 @@ except Exception:  # pragma: no cover - 兼容旧导入路径
 
 
 PLUGIN_NAME = "astrbot_plugin_petlink"
-PLUGIN_VERSION = "0.2.6"
+PLUGIN_VERSION = "0.2.7"
 UPSTREAM_CHAT_PATH = "/api/v1/chat"
 
 
@@ -794,7 +794,39 @@ class DshPetBridge(Star):
                 upstream.status,
                 text,
             )
-            return self._json({"error": "upstream_error", "status": upstream.status}, 502, cors)
+            return self._json(
+                {"error": "upstream_error", "status": upstream.status, "message": text},
+                502,
+                cors,
+            )
+
+        # AstrBot 的 OpenAPI 在“用户名是管理员但没有 admin scope”等情况下会返回
+        # HTTP 200 + JSON 错误体。不能把它当 SSE 原样透传，否则客户端只会看到“没有文本”。
+        content_type = (upstream.headers.get("content-type") or "").lower()
+        if "text/event-stream" not in content_type:
+            text = ""
+            try:
+                text = (await upstream.text())[:300]
+            except Exception:
+                pass
+            upstream.release()
+            try:
+                parsed = json.loads(text)
+                message = str(parsed.get("message") or parsed.get("error") or text)
+            except Exception:
+                message = text
+            self._counters["errors"] += 1
+            logger.warning(
+                "[petlink] 上游返回非 SSE fingerprint=%s status=%s body=%s",
+                fingerprint(token),
+                upstream.status,
+                text,
+            )
+            return self._json(
+                {"error": "upstream_rejected", "message": message},
+                502,
+                cors,
+            )
 
         response = web.StreamResponse(
             status=200,

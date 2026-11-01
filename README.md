@@ -22,6 +22,8 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 > 健康检查对仅有 chat scope 的 Key 不再判死，测试连接可直接通过。
 >
 > **0.2.6**：`/health` 增加 `token_ok`；带设备令牌请求时会校验令牌，客户端测试连接可发现令牌不一致。
+>
+> **0.2.7**：识别 AstrBot 返回的 HTTP 200 JSON 错误体，不再把错误 JSON 当 SSE 透传；客户端会显示明确原因。
 
 ```
 桌宠（Electron）
