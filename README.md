@@ -24,6 +24,8 @@ OpenAPI（`POST /api/v1/chat`），再把 SSE 流原样回传给桌宠。
 > **0.2.6**：`/health` 增加 `token_ok`；带设备令牌请求时会校验令牌，客户端测试连接可发现令牌不一致。
 >
 > **0.2.7**：识别 AstrBot 返回的 HTTP 200 JSON 错误体，不再把错误 JSON 当 SSE 透传；客户端会显示明确原因。
+>
+> **0.2.8**：session_id 按身份隔离（如 `pet:2179134766:main`），切换 QQ号/自定义模式后不会再报 `session_id belongs to another username`。
 
 ```
 桌宠（Electron）
